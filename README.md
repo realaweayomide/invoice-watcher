@@ -68,6 +68,21 @@ and an invoice doesn't become less overdue because Saturday occurred.
 Copying a rule from one monitor into another without asking which clock the domain actually uses
 is how you end up chasing customers five days early.
 
+## Risks, and what's done about them
+
+Chasing people for money is the one place an automation bug costs you a relationship rather than
+an afternoon. The real risks aren't about counting days — they're these:
+
+| Risk | What this does about it |
+|---|---|
+| **Payment in transit.** Bank transfers take 1–3 days to clear, so an invoice "1 day overdue" has often already been paid. | A **grace period** (default 3 days, `GRACE_DAYS`). Nothing is chased until it's past due by more than that. Set it to 0 if you invoice on receipt. |
+| **Public holidays and weekends.** A reminder landing on Christmas Day is useless and slightly rude. | A **send guard**. On a weekend or a date in `HOLIDAYS`, it holds — and **doesn't save state**, so the reminder goes out the next working day instead of being silently consumed. |
+| **Stale data.** If your export is yesterday's, you'll chase someone who paid this morning. | ⚠️ **Nothing can fix this but you.** Re-export before each run, or point `INVOICES_FILE` at a live export. This is the biggest risk in the whole tool and it's upstream of the code. |
+| **Timezones.** Due dates are compared in the server's local day. | Run it in the timezone you invoice from (`TIMEZONE`). |
+
+The one I'd genuinely worry about is the third. Everything else is handled; **that one is a
+process problem wearing a software costume**, and no amount of code makes a day-old CSV current.
+
 ## It handles the messy parts
 
 - **Due dates derived from terms** when absent — `Net 30`, `net60`, `14`, `due on receipt` all parse.

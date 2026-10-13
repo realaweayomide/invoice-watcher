@@ -1,5 +1,5 @@
 import { loadInvoices, status, ageingSummary } from './src/invoices.js'
-import { planReminders, stageFor } from './src/dunning.js'
+import { planReminders, stageFor, shouldSendToday } from './src/dunning.js'
 import { readFileSync } from 'node:fs'
 
 let fails = 0
@@ -41,7 +41,12 @@ check('summary totals outstanding', sum.outstanding > 0 && sum.overdue > 0, '$'+
 check('summary counts unreadable invoices separately', sum.unknown === 1)
 
 // --- dunning stages ---
-check('3 days overdue is a polite nudge', stageFor(3).id === 'nudge', stageFor(3)?.id)
+// grace period: payments in transit must not be chased
+check('1 day overdue is NOT chased (payment may be in transit)', stageFor(1) === null)
+check('3 days overdue is still within the default grace period', stageFor(3) === null)
+check('4 days overdue is a polite nudge', stageFor(4).id === 'nudge', stageFor(4)?.id)
+check('grace period is configurable to zero', stageFor(1, null, 0)?.id === 'nudge')
+check('a long grace period delays everything', stageFor(5, null, 7) === null)
 check('15 days overdue is a firmer chase', stageFor(15).id === 'chase')
 check('45 days overdue is formal', stageFor(45).id === 'final')
 check('70 days overdue goes to a human', stageFor(70).id === 'escalate')
@@ -67,6 +72,13 @@ check('but a worsening customer DOES get the next stage', later.reminders.length
 check('escalation message is marked internal',
   later.reminders.find(r=>r.stage.id==='escalate')?.message.internal === true,
   later.reminders.find(r=>r.stage.id==='escalate')?.customer || 'none escalated')
+
+// send guard
+check('does not send at the weekend', shouldSendToday(new Date('2026-10-17T09:00:00')).send === false,
+  shouldSendToday(new Date('2026-10-17T09:00:00')).reason)
+check('sends on a working day', shouldSendToday(new Date('2026-10-13T09:00:00')).send === true)
+check('does not send on a configured holiday',
+  shouldSendToday(new Date('2026-12-25T09:00:00'), ['2026-12-25']).send === false)
 
 check('messages contain the invoice numbers and totals',
   /INV-2041/.test(northwind.message.body) && /6,050/.test(northwind.message.body))

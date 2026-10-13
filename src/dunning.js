@@ -20,11 +20,36 @@ export const STAGES = [
   { id: 'escalate', from: 61,  tone: 'escalated', label: 'For human attention' },
 ]
 
-export function stageFor(daysOverdue, dueIn = null) {
+/**
+ * GRACE PERIOD — why this exists:
+ * Bank transfers take one to three days to clear. An invoice that is "1 day overdue" has very
+ * often already been paid, and the payment is simply in flight. Chasing on day one costs you
+ * goodwill over nothing, and trains the customer to ignore the next message because the last
+ * one was wrong.
+ *
+ * So nothing is chased until it is past due BY MORE THAN the grace period. Default 3 days.
+ * Set it to 0 if you invoice on receipt and expect instant payment.
+ */
+export const DEFAULT_GRACE_DAYS = 3
+
+export function stageFor(daysOverdue, dueIn = null, graceDays = DEFAULT_GRACE_DAYS) {
   if (daysOverdue <= 0) return dueIn !== null && dueIn <= 3 ? STAGES[0] : null
+  if (daysOverdue <= graceDays) return null          // payment may simply be in transit
   let found = null
   for (const s of STAGES) if (s.from > 0 && daysOverdue >= s.from) found = s
   return found
+}
+
+/**
+ * SEND GUARD — don't chase people on days their finance team isn't working.
+ * A reminder landing on a public holiday is both useless and slightly rude.
+ */
+export function shouldSendToday(now = new Date(), holidays = []) {
+  const day = now.getDay()
+  if (day === 0 || day === 6) return { send: false, reason: 'weekend' }
+  const iso = now.toISOString().slice(0, 10)
+  if (holidays.includes(iso)) return { send: false, reason: `holiday (${iso})` }
+  return { send: true }
 }
 
 const fmt = (n, cur = '$') => cur + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -36,6 +61,7 @@ const fmt = (n, cur = '$') => cur + Number(n).toLocaleString(undefined, { minimu
 export function planReminders(invoices, state = {}, opts = {}) {
   const now = opts.now ? new Date(opts.now) : new Date()
   const currency = opts.currency || '$'
+  const grace = opts.graceDays ?? DEFAULT_GRACE_DAYS
   const byCustomer = new Map()
   const unknown = []
 
@@ -44,7 +70,7 @@ export function planReminders(invoices, state = {}, opts = {}) {
     if (s.state === 'paid') continue
     if (s.state === 'unknown') { unknown.push({ invoice: inv, note: s.note }); continue }
 
-    const stage = stageFor(s.daysOverdue, s.dueIn ?? null)
+    const stage = stageFor(s.daysOverdue, s.dueIn ?? null, grace)
     if (!stage) continue
 
     const entry = byCustomer.get(inv.customer) || { customer: inv.customer, email: inv.email, lines: [], total: 0, worst: 0 }
@@ -60,7 +86,7 @@ export function planReminders(invoices, state = {}, opts = {}) {
   for (const entry of byCustomer.values()) {
     // The customer's stage is set by their OLDEST invoice — if one is 60 days late, a polite
     // note about the others is the wrong register.
-    const stage = stageFor(entry.worst, entry.lines[0]?.daysOverdue <= 0 ? 1 : null) || STAGES[0]
+    const stage = stageFor(entry.worst, entry.lines[0]?.daysOverdue <= 0 ? 1 : null, grace) || STAGES[0]
     nextState[entry.customer] = stage.id
 
     if (state[entry.customer] === stage.id) continue      // already said this; say nothing
