@@ -1,0 +1,9 @@
+Invoice Number,Customer,Customer Email,Amount,Amount Paid,Invoice Date,Payment Terms
+INV-2041,Northwind Logistics,ap@northwind.co,4800.00,0,2026-09-01,Net 30
+INV-2042,Northwind Logistics,ap@northwind.co,1250.00,0,2026-09-15,Net 30
+INV-2043,Acme Manufacturing,finance@acme.io,9600.00,9600.00,2026-09-05,Net 30
+INV-2044,Meridian Health,accounts@meridian.health,3200.00,1000.00,2026-08-02,Net 30
+INV-2045,Zenith Partners,pay@zenith.partners,15000.00,0,2026-07-10,Net 60
+INV-2046,Coastal Freight,ap@coastalfreight.com,780.00,0,2026-10-05,Net 14
+INV-2047,Harbour Foods,,2400.00,0,2026-08-20,Net 30
+INV-2048,Summit Dental,hello@summitdental.co,1100.00,0,,
